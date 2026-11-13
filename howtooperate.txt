@@ -1,0 +1,338 @@
+PLANT DISEASE XAI — HOW TO OPERATE
+Updated: 2026-11-13
+
+PROJECT FOLDER
+---------------
+Open PowerShell and change to the project folder:
+
+    Set-Location "C:\path\to\Plant XAI"
+
+The project virtual environment is in .\venv. Use its Python executable in the
+commands below so you do not depend on which Python is first on PATH.
+
+
+1. START THE STREAMLIT APP
+--------------------------
+Run from the project folder:
+
+    .\venv\Scripts\python.exe -m streamlit run app.py --server.port 8501
+
+Open this address in your browser:
+
+    http://localhost:8501
+
+Keep the PowerShell window open while you use the app. To stop the server,
+focus that window and press Ctrl+C. To use the app again later, run the start
+command again.
+
+If port 8501 is already occupied, use another port:
+
+    .\venv\Scripts\python.exe -m streamlit run app.py --server.port 8502
+
+Then open http://localhost:8502. Old browser tabs on port 8765 may be stale;
+use the port printed by the Streamlit command.
+
+Check whether the app is responding:
+
+    Invoke-RestMethod "http://localhost:8501/_stcore/health"
+
+Expected response: ok
+
+
+2. START AND CHECK LOCAL OLLAMA
+-------------------------------
+Ollama may already be running in the background. Check its installed models:
+
+    ollama list
+
+Or check the local HTTP API:
+
+    (Invoke-RestMethod "http://localhost:11434/api/tags").models | Select-Object name
+
+The configured model is qwen2.5:3b. If it is not installed, download it once:
+
+    ollama pull qwen2.5:3b
+
+If the API is not reachable, open a second PowerShell window and run:
+
+    ollama serve
+
+Leave that window open as well. If it says the port is already in use, Ollama
+may already be running; recheck /api/tags rather than starting another server.
+
+The app reads OLLAMA_BASE_URL and OLLAMA_MODEL from .env. Defaults are
+http://localhost:11434 and qwen2.5:3b. Disease predictions request an advisory
+with a 120-second timeout. Healthy predictions skip Ollama. On connection,
+HTTP, or invalid-advisory errors, the decision layer uses local deterministic
+rules and displays a status reason in the advisory area.
+
+
+3. OTHER USEFUL COMMANDS
+------------------------
+Run all project tests:
+
+    .\venv\Scripts\python.exe -m pytest tests -q
+
+Classify one image from the terminal (top three predictions):
+
+    .\venv\Scripts\python.exe predict.py "C:\full\path\to\leaf.jpg"
+
+If the checkpoint is not found automatically, give its path explicitly:
+
+    .\venv\Scripts\python.exe predict.py "C:\full\path\to\leaf.jpg" --checkpoint ".\trained instnace\mobilenetv2_plant_disease.pth"
+
+Check that the trained checkpoint exists:
+
+    Test-Path ".\trained instnace\mobilenetv2_plant_disease.pth"
+
+Install/restore the project dependencies if needed:
+
+    .\venv\Scripts\python.exe -m pip install -r requirements.txt
+
+
+4. OPTIONAL FASTAPI SERVICE
+---------------------------
+The Streamlit dashboard runs by itself; FastAPI is not required for it.
+The optional legacy API exposes /, /predict, and /analyze. Start it with:
+
+    .\venv\Scripts\python.exe -m uvicorn main:app --reload
+
+Open API documentation at http://127.0.0.1:8000/docs.
+
+IMPORTANT: the legacy API initializes a separate model path from MODEL_PATH
+(default: models/mobilenetv2_plant_disease.pth) and may use a mock path if its
+checkpoint is absent. Before relying on API predictions, configure MODEL_PATH
+in .env to the actual checkpoint and check the API's model_loaded/is_mock
+status. Do not assume the API is using the same model-loading path as the
+standalone Streamlit dashboard.
+
+
+5. CHECKPOINT PATH NOTE
+-----------------------
+The Streamlit model utility searches known locations, including:
+
+    .\mobilenetv2_plant_disease.pth
+    .\trained instnace\mobilenetv2_plant_disease.pth
+
+An invalid MODEL_PATH from .env is logged as a warning, after which those
+known Streamlit checkpoint locations are searched. If you want to avoid that
+warning and make the configuration explicit, update MODEL_PATH in .env to the
+checkpoint's full path. The current directory name is spelled "trained
+instnace". Do not share or commit .env; it may contain private credentials.
+
+
+6. CURRENT VERIFIED STATE AND LIMITATIONS
+------------------------------------------
+- The local Ollama API was reachable, qwen2.5:3b was installed, and a live
+  disease-advisory request succeeded in about 35.5 seconds. The MobileNetV2
+  predicted class was retained and the expected advisory fields were returned.
+- The trained checkpoint was loaded on CPU for a Grad-CAM smoke check. The
+  result included the requested XAI metric keys and 224x224 heatmap/overlay.
+- The complete project test suite most recently passed: 12 passed. Tests are
+  software-behavior checks, not classifier accuracy results.
+- An uploaded-image Streamlit AppTest completed without app exceptions using
+  mocked advisory/audio output. This does not verify a real camera, every
+  browser, or live text-to-speech playback.
+- gTTS needs internet access to produce Hindi audio. If speech generation
+  fails (for example offline), the app shows a caption and retains the text.
+- The owner reports training the checkpoint in Colab, but Colab logs, exact
+  dataset split, training/validation metrics, and an independent test result
+  have not been verified here. Do not invent or claim model accuracy.
+- The PlantVillage dataset is controlled imagery. Real-world field
+  generalization has not been established. Grad-CAM is a visual aid, not
+  proof of causal reasoning or a measure of disease severity.
+- Species filtering re-normalizes scores over the chosen species. Its
+  displayed confidence is conditional on that selected species.
+- The advisory is preliminary decision support, not a confirmed diagnosis or
+  treatment prescription. It must not be presented as changing the classifier
+  label.
+
+
+7. REPORT-IMPROVEMENT PROMPT
+----------------------------
+Copy the prompt below into an AI assistant along with the project files and any
+available Colab logs. Never include .env, API keys, or other credentials.
+
+PROMPT START
+
+You are an academic report assistant. Help me complete and improve the report
+for my Plant Disease XAI student project. Treat the current application as
+ready for a local demonstration at its present implemented scope, while
+clearly distinguishing demo readiness from scientific validation,
+agricultural deployment readiness, and verified model accuracy.
+
+FIRST: inspect the supplied current source files, tests, README, and project
+handoff. Current source and executed test results take precedence over older
+documentation. Do not modify code. Never reveal, copy, or ask for .env contents,
+API keys, or credentials.
+
+PROJECT OVERVIEW
+This is a prototype decision-support application for plant-leaf images. The
+main user-facing demo is a local Streamlit dashboard, with MobileNetV2 image
+classification, Grad-CAM visual evidence, and a structured language-model
+advisory. It is implemented to run locally on CPU; CUDA may be used if
+available. The dashboard does not require the separate legacy FastAPI service.
+It is a student-project demo, not a validated diagnosis or field-ready
+agricultural product.
+
+IMPLEMENTED FEATURES
+1. Image input: upload JPG/JPEG/PNG or capture an image using Streamlit's
+   camera input.
+2. Preprocessing: RGB conversion, 224x224 resize, ImageNet normalization
+   (mean [0.485, 0.456, 0.406], std [0.229, 0.224, 0.225]).
+3. Classifier: PyTorch MobileNetV2 with 38 PlantVillage output classes and a
+   supplied trained checkpoint. The expected local checkpoint is
+   "trained instnace/mobilenetv2_plant_disease.pth" (directory spelling is
+   exactly "instnace"). It runs on CPU without requiring a GPU.
+4. Results: top-three class predictions and confidence percentages.
+5. Species filter: optional filtering and re-normalization over classes for
+   the selected species. The resulting confidence is conditional on the
+   user's selected species; this is not an independent species detector and
+   does not retrain the classifier.
+6. Explainability: class-targeted Grad-CAM on MobileNetV2.features[-1].
+   The interface displays the resized original, standalone raw heatmap, and
+   blended overlay. Metrics include target class/layer, normalized peak and
+   mean activation, percent of pixels over 0.5, and the share of such
+   activations within the centered 70% image region. These metrics describe
+   the visualization only; they do not prove causal reasoning or measure
+   disease severity.
+7. Decision/advisory layer: for a non-healthy classifier prediction, sends
+   structured evidence (predicted label, confidence, top three, Grad-CAM
+   coverage) to local Ollama's /api/chat endpoint. The configured default is
+   qwen2.5:3b; request timeout is 120 seconds, with a compact JSON response.
+   The response contains reliability, severity, routing, issue explanation,
+   recommended preliminary action, and a Hindi summary. The model's predicted
+   disease label is preserved; the advisory must not replace it. A healthy
+   prediction skips Ollama. When the request fails or returns invalid data,
+   deterministic local rules are used and a status reason is displayed.
+8. Hindi speech: gTTS can generate MP3 audio for the Hindi summary and the
+   app caches generated audio in Streamlit session state. Speech generation
+   requires network access; failure leaves the text available and shows a
+   graceful caption.
+9. UI: warm beige, forest green, plum accents, geometric typography, and
+   neumorphic cards in the Bauhaus-inspired dashboard. Preserve descriptions
+   as current app behavior; do not propose redesigning the existing theme.
+10. Optional CLI: predict.py classifies an image and prints top-three results.
+    An optional FastAPI backend exists separately. Inspect its actual code
+    and tests before making claims about it; it has distinct model-loading
+    behavior and may use a mock path if its expected checkpoint is absent.
+
+SOLVED IMPLEMENTATION / OPERATING PROBLEMS
+- "Failed to connect" in the browser was caused by no Streamlit server
+  listening. Starting Streamlit on port 8501 made the UI health endpoint
+  respond with HTTP 200 "ok". Tabs pointing to old port 8765 were stale;
+  the current demo URL is http://localhost:8501.
+- Local Ollama is configured directly through OLLAMA_BASE_URL and
+  OLLAMA_MODEL, defaulting to http://localhost:11434 and qwen2.5:3b. The
+  qwen2.5:3b model was confirmed installed, the Ollama API was reachable, and
+  a live advisory call succeeded. There is a 120-second timeout and fallback
+  path with an observable status reason.
+- The default Ollama model took about 35.5 seconds in one verified live call;
+  actual runtime varies with machine load and inputs.
+- A stale MODEL_PATH in .env pointed to a missing models/ checkpoint. The
+  standalone Streamlit resolver now logs the invalid environment path and
+  searches known locations, including "trained instnace/". The legacy API
+  has separate behavior and is not automatically fixed by that resolver.
+- The checkpoint successfully loaded on CPU and generated a prediction and
+  Grad-CAM smoke-test output. This proves software/checkpoint compatibility
+  for that run, not model accuracy.
+- The dependencies include the app's required libraries and gTTS. Use the
+  repository's own current requirements file as source of truth.
+
+TESTS AND VERIFIED RESULTS
+- The latest complete project pytest run passed 12 tests. Report this as
+  "12 software tests passed" only when citing this observed run; it is not
+  classification accuracy, validation accuracy, or a clinical/field result.
+- The tests cover existing API mock behavior, model behavior, Grad-CAM
+  behavior, decision-layer rules/Ollama request handling, and species-filter
+  logic. Inspect the actual tests for exact coverage; do not imply every test
+  uses the trained weights.
+- A trained-checkpoint CPU Grad-CAM smoke test verified the exact requested
+  XAI metric keys, target class information, normalized values, and
+  224x224 raw heatmap/overlay.
+- A direct live local Ollama disease-advisory request took about 35.5 seconds,
+  returned all expected fields, and preserved the MobileNetV2 label.
+- A Streamlit uploaded-image AppTest completed with no app exceptions using
+  mocked advisory and speech generation. This does not constitute live
+  gTTS validation, camera testing, cross-browser testing, or user testing.
+- Python compilation and editor diagnostics for the recently modified Python
+  files completed without reported errors.
+- Do not describe mock API predictions as trained-model performance.
+
+IMPORTANT LIMITATIONS / UNSOLVED VALIDATION
+- The owner reports training the checkpoint on Colab, but the training logs,
+  exact data source/version/counts, class_to_idx mapping actually used,
+  split provenance, hyperparameters/epoch history, validation metrics, and
+  independent test results have not been supplied here for verification.
+  Leave these as "not provided" or use clear placeholders; do not invent.
+- A software test, smoke test, successful UI load, or live LLM response does
+  not establish classifier accuracy.
+- PlantVillage images are relatively controlled. Generalization to field
+  images, other devices, lighting, backgrounds, and real agricultural
+  conditions has not been established.
+- No independent model evaluation result should be claimed without a
+  documented held-out test dataset and metrics.
+- The species filter changes the probability normalization context; explain
+  its conditional confidence clearly.
+- Grad-CAM maps are explanatory visual aids, not causal proof or severity
+  estimates.
+- LLM advisory text is generated and not independently verified agronomic
+  guidance. It is preliminary decision support, not a treatment prescription.
+- gTTS depends on internet access. The latest UI smoke test used a mocked
+  speech provider, so live audio generation/playback remains unverified.
+- The separate legacy FastAPI service may have a missing checkpoint or mock
+  inference. Inspect / and its `is_mock`/model status before reporting its
+  behavior; do not conflate it with the standalone Streamlit app.
+- The `.env` file may contain secrets; never include it in report materials
+  or upload it to another assistant.
+
+WHAT "READY" MEANS
+Describe the project as ready for a local demo of the implemented Streamlit
+workflow, backed by the successful smoke checks and passing software tests.
+Do not call it ready for clinical/agricultural deployment, scientifically
+validated, proven accurate, or field-generalizable without additional
+evidence. State that the report can be completed now, with missing experiment
+results explicitly marked and later filled from Colab logs or new evaluation.
+
+YOUR TASK AND OUTPUT
+1. Give a clear report outline: abstract, introduction/problem, objectives,
+   related work, dataset, methodology, architecture, implementation, testing,
+   evaluation/results, limitations, ethics/safety, conclusion, future work.
+2. Draft polished report text grounded only in supplied current source,
+   test output, and verified facts above. Separate:
+   a) implemented functionality,
+   b) executed software/runtime checks,
+   c) owner-reported training history,
+   d) unverified model-performance claims.
+3. Include a short "Project Readiness" section accurately stating the local
+   demo is currently runnable while model accuracy and field validity remain
+   unverified.
+4. Include a "Problems Encountered and Resolutions" table covering at least:
+   server not listening/stale ports, Ollama endpoint/model/latency, fallback
+   behavior, stale MODEL_PATH and checkpoint discovery, and the distinct
+   legacy API checkpoint/mock caveat. Distinguish resolved from remaining.
+5. Include a software-testing table. Quote the latest observed 12 passing
+   tests only as a software result, explain likely test categories from actual
+   tests, and explicitly state they do not measure model accuracy.
+6. Use explicit placeholders for unavailable experimental values, such as
+   "[Insert best validation accuracy from Colab log]" and
+   "[Insert independent test-set macro-F1]". Never fabricate a value.
+7. List evidence still needed: dataset source and class counts, class-index
+   mapping, preprocessing agreement, train/validation/test split and leakage
+   controls, per-class precision/recall/F1, macro/weighted metrics, confusion
+   matrix, calibration/confidence analysis, CPU/device latency, checkpoint
+   size, representative field-image tests, and failure cases.
+8. Suggest report figures/tables: component architecture and data-flow
+   diagram; sample input/top-three/raw Grad-CAM/overlay; XAI metric
+   definitions; model metric/confusion-matrix tables once available;
+   runtime/device table; solved-problems table; and limitations/risk table.
+9. Do not invent academic citations. Provide real verifiable references and
+   URLs only if you can verify them; otherwise mark citation placeholders.
+10. Flag stale or contradictory documentation, especially older handoff
+    notes that describe Ollama as unavailable or list an obsolete test count.
+    The latest observed live Ollama request succeeded and the latest full test
+    run passed 12 tests; present these as dated observations, not guarantees.
+11. Do not modify project code. Ask me for missing Colab reports or metrics
+    only after drafting the parts that can already be completed.
+
+PROMPT END

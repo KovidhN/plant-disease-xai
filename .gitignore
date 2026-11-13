@@ -1,0 +1,20 @@
+venv/
+.venv/
+__pycache__/
+*.pyc
+.env
+.env.*
+!.env.example
+data/*
+!data/.gitkeep
+!data/README.md
+trained instnace/
+*.pth
+*.pt
+*.ckpt
+models/*
+!models/.gitkeep
+outputs/*
+!outputs/.gitkeep
+.pytest_cache/
+.streamlit/secrets.toml
